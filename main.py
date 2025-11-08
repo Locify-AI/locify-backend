@@ -4,6 +4,8 @@ from pydantic import BaseModel
 from typing import Optional, List
 from contextlib import asynccontextmanager
 import uvicorn
+import os
+from dotenv import load_dotenv
 from sqlalchemy.orm import Session
 
 from database import SessionLocal, engine, init_db
@@ -17,6 +19,13 @@ import re
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan context manager for startup and shutdown events"""
+    # Load environment vars early
+    load_dotenv()
+    dedalus_key = os.getenv("DEDALUS_API_KEY")
+    if not dedalus_key:
+        print("WARNING: DEDALUS_API_KEY not set. Dedalus agent calls will fail.")
+    else:
+        print("INFO: DEDALUS_API_KEY loaded (length: {} chars)".format(len(dedalus_key)))
     # Startup
     init_db()
     yield
@@ -279,6 +288,9 @@ async def delete_city(city_name: str, db: Session = Depends(get_db)):
     }
 
 
+_DISCOVERY_LOCK = False
+
+
 @app.post("/api/discover-locations", response_model=LocationResponse)
 async def discover_locations_with_narrations(
     request: LocationRequest,
@@ -289,6 +301,12 @@ async def discover_locations_with_narrations(
     narrations for each. Returns name, coordinates, category, and narration.
     """
     try:
+        global _DISCOVERY_LOCK
+        if _DISCOVERY_LOCK:
+            # Prevent concurrent long-running discoveries from piling up DB connections
+            raise HTTPException(status_code=429, detail="Discovery already in progress. Please try again in a moment.")
+
+        _DISCOVERY_LOCK = True
         location_service = LocationService(db)
         
         # Check if this location (city/town) has been discovered before
@@ -431,6 +449,8 @@ async def discover_locations_with_narrations(
     except Exception as e:
         print(f"Error in discover_locations_with_narrations: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+    finally:
+        _DISCOVERY_LOCK = False
 
 
 
