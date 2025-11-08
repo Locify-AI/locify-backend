@@ -208,6 +208,7 @@ async def get_all_locations(
             "category": loc.category,
             "latitude": loc.latitude,
             "longitude": loc.longitude,
+            "narration": narration.script if narration else None,
             "has_narration": narration is not None,
             "created_at": loc.created_at.isoformat() if loc.created_at else None
         })

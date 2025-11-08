@@ -70,6 +70,7 @@ class LocationService:
 
         stored_count = 0
         skipped_count = 0
+        narration_count = 0
 
         for i, loc_data in enumerate(locations_data):
             print(f"DEBUG: Processing location {i+1}/{len(locations_data)}: {loc_data.get('name', 'Unknown')}")
@@ -106,7 +107,7 @@ class LocationService:
             # Extract narration if present in the data
             narration_text = loc_data.get('narration', '')
 
-            # Skip locations without narrations
+            # Validate narration - check if it's valid (not handoff JSON or empty)
             if not narration_text or narration_text.strip() == '':
                 print(f"  SKIPPED: No narration available")
                 skipped_count += 1
@@ -127,6 +128,7 @@ class LocationService:
                 existing_location.historical_significance = loc_data.get('historical_significance') or existing_location.historical_significance
                 existing_location.user_location_id = user_location.id
                 location_id = existing_location.id
+                print(f"  UPDATED: Existing location updated in database")
             else:
                 # Create new location - store exactly what we receive
                 location = Location(
@@ -150,7 +152,7 @@ class LocationService:
                 print(f"  STORED: New location added to database")
 
             # Store narration if provided (after location is saved)
-            if narration_text:
+            if narration_text and narration_text.strip():
                 existing_narration = self.db.query(Narration).filter(
                     Narration.location_id == location_id
                 ).first()
@@ -158,6 +160,7 @@ class LocationService:
                 if existing_narration:
                     existing_narration.script = narration_text
                     existing_narration.word_count = len(narration_text.split())
+                    narration_count += 1
                     print(f"  Updated narration ({len(narration_text.split())} words)")
                 else:
                     narration = Narration(
@@ -166,12 +169,13 @@ class LocationService:
                         word_count=len(narration_text.split())
                     )
                     self.db.add(narration)
+                    narration_count += 1
                     print(f"  Added narration ({len(narration_text.split())} words)")
             else:
-                print(f"  WARNING: No narration text for this location")
+                print(f"  NOTE: No narration text for this location (storing location anyway)")
 
         self.db.commit()
-        print(f"DEBUG: Storage complete - Stored: {stored_count}, Skipped: {skipped_count} (no narration), Total: {len(locations_data)}")
+        print(f"DEBUG: Storage complete - Stored: {stored_count} locations, {narration_count} narrations, Skipped: {skipped_count}, Total: {len(locations_data)}")
         return stored_count
     
     def get_locations_by_city(self, city_name: str) -> List[Location]:
