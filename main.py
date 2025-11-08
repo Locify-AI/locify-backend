@@ -13,6 +13,48 @@ from services import LocationService
 import json
 import re
 
+import random
+import base64
+import os
+import requests
+import time
+from dotenv import load_dotenv
+
+import boto3
+from botocore.exceptions import NoCredentialsError
+
+s3 = boto3.client(
+    "s3",
+    aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+    aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+    region_name=os.getenv("AWS_REGION")
+)
+
+def upload_video_to_s3(video_bytes: bytes, filename: str) -> str:
+    """
+    Uploads video bytes to S3 and returns a temporary signed URL (valid 24 hours).
+    Keeps bucket private.
+    """
+    bucket = os.getenv("S3_BUCKET_NAME")
+    try:
+        # Upload video to S3 (private)
+        s3.put_object(
+            Bucket=bucket,
+            Key=filename,
+            Body=video_bytes,
+            ContentType="video/mp4"
+        )
+
+        # Generate presigned URL valid for 24 hours
+        url = s3.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": bucket, "Key": filename},
+            ExpiresIn=86400  # 24 hours
+        )
+        return url
+    except NoCredentialsError:
+        raise HTTPException(status_code=500, detail="AWS credentials not configured correctly")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -513,7 +555,118 @@ def parse_json_from_response(response_text: str) -> List[dict]:
     print(f"Warning: Could not parse JSON from response. First 500 chars: {response_text[:500]}")
     return []
 
+DID_API_KEY = os.getenv("DID_API_KEY")
 
+guides = [
+    "JBFqnCBsd6RMkjVDRZzb",  # george british
+    "IKne3meq5aSn9XLyUdCD",  # charlie australian
+    "cgSgspJ2msm6clMCkdW9",  # jessica american
+    "pFZP5JQG7iQjIQuC4Bku",  # lily british
+    "nPczCjzI2devNBz1zQrb",  # brian american
+]
+
+images = [
+    "blackguy.jpeg",
+    "brownguy.jpg",
+    "asiangirl.jpg",
+    "whitegirl.jpg",
+    "whiteguy.jpeg",
+]
+
+
+class AvatarRequest(BaseModel):
+    text: str = "Hi, and welcome to your new favorite city!"
+
+
+@app.post("/api/generate-talking-avatar")
+async def generate_talking_avatar(request: AvatarRequest):
+    """
+    Create a talking avatar video using D-ID with a random voice and avatar.
+    """
+    try:
+        headers = {
+            "Authorization": f"Basic {base64.b64encode((DID_API_KEY + ':').encode()).decode()}",
+        }
+
+        # Randomly pick a voice + avatar
+        chosen_guide = random.randint(0, 4)
+        voice_id = guides[chosen_guide]
+        image_file = images[chosen_guide]
+
+        # === STEP 1: Upload an image directly to D-ID's /images endpoint ===
+        with open(image_file, "rb") as f:
+            files = {"image": (image_file, f, "image/jpeg")}
+            upload_resp = requests.post("https://api.d-id.com/images", headers=headers, files=files)
+
+        if upload_resp.status_code != 201:
+            raise HTTPException(
+                status_code=upload_resp.status_code,
+                detail=f"Image upload failed: {upload_resp.text}"
+            )
+
+        source_url = upload_resp.json()["url"]
+        print(f"✅ Image uploaded successfully: {source_url}")
+
+        # === STEP 2: Create the talking avatar ===
+        payload = {
+            "source_url": source_url,
+            "script": {
+                "type": "text",
+                "provider": {"type": "elevenlabs", "voice_id": voice_id},
+                "input": request.text
+            },
+            "config": {"stitch": True, "align_driver": True}
+        }
+
+        talk_resp = requests.post("https://api.d-id.com/talks", headers=headers, json=payload)
+        if talk_resp.status_code != 201:
+            raise HTTPException(
+                status_code=talk_resp.status_code,
+                detail=f"Talk creation failed: {talk_resp.text}"
+            )
+
+        talk_id = talk_resp.json()["id"]
+        print(f"🎬 Video generation started (talk_id={talk_id})")
+
+        # === STEP 3: Poll for completion ===
+        status_url = f"https://api.d-id.com/talks/{talk_id}"
+        video_url = None
+        while True:
+            status_resp = requests.get(status_url, headers=headers)
+            data = status_resp.json()
+            if data.get("status") == "done":
+                video_url = data["result_url"]
+                break
+            elif data.get("status") == "error":
+                raise HTTPException(status_code=500, detail=f"D-ID error: {data}")
+            time.sleep(3)
+
+        print(f"✅ Video ready from D-ID: {video_url}")
+
+        # === STEP 4: Download video bytes from D-ID ===
+        video_resp = requests.get(video_url)
+        if video_resp.status_code != 200:
+            raise HTTPException(status_code=500, detail="Failed to download video from D-ID")
+
+        video_bytes = video_resp.content
+
+        # === STEP 5: Upload to S3 ===
+        timestamp = int(time.time())
+        s3_filename = f"avatars/avatar_{timestamp}.mp4"
+        s3_url = upload_video_to_s3(video_bytes, s3_filename)
+        print(f"✅ Uploaded to S3: {s3_url}")
+
+        return {
+            "message": "Avatar video created and uploaded successfully",
+            "s3_url": s3_url,
+            "voice_id": voice_id,
+            "avatar_image": image_file
+        }
+
+    except Exception as e:
+        print(f"Error in generate_talking_avatar: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+    
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
 
