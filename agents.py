@@ -3,6 +3,7 @@ from dedalus_labs import AsyncDedalus, DedalusRunner
 from dotenv import load_dotenv
 import json
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 load_dotenv()
 
@@ -358,29 +359,38 @@ async def discover_locations_with_narrations(latitude: float, longitude: float, 
 
     print(f"\n✅ Agent 1 complete: Found {len(locations)} locations")
 
-    # AGENT 2: Generate narrations for each location IN BATCHES OF 3
-    print(f"\n📝 AGENT 2: Generating narrations for {len(locations)} locations IN BATCHES OF 3...")
+    # AGENT 2: Generate narrations for each location using parallel workers
+    print(f"\n📝 AGENT 2: Generating narrations for {len(locations)} locations using parallel workers...")
     print("="*80 + "\n")
 
-    # Create tasks for parallel execution
-    async def generate_with_error_handling(location, index):
-        """Helper function to generate narration with error handling"""
+    def generate_with_error_handling_sync(location, index):
+        """Synchronous wrapper for parallel execution using ThreadPoolExecutor"""
         print(f"[{index}/{len(locations)}] Starting: {location.get('name', 'Unknown')}")
 
         try:
-            narration = await generate_tour_guide_narration(
-                place_name=location.get('name', 'Unknown'),
-                place_category=location.get('category', 'Unknown'),
-                coordinates=location.get('coordinates', {}),
-                address=location.get('address', ''),
-                foursquare_description=location.get('description', ''),
-                historical_significance=location.get('historical_significance', '')
-            )
+            # Create a new event loop for this thread
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            
+            try:
+                # Run the async function with timeout to prevent hanging
+                narration = loop.run_until_complete(
+                    generate_tour_guide_narration(
+                        place_name=location.get('name', 'Unknown'),
+                        place_category=location.get('category', 'Unknown'),
+                        coordinates=location.get('coordinates', {}),
+                        address=location.get('address', ''),
+                        foursquare_description=location.get('description', ''),
+                        historical_significance=location.get('historical_significance', '')
+                    )
+                )
 
-            # Add narration to location object
-            location['narration'] = narration
-            print(f"✅ [{index}/{len(locations)}] Complete: {location.get('name', 'Unknown')} ({len(narration)} chars)")
-            return location
+                # Add narration to location object
+                location['narration'] = narration
+                print(f"✅ [{index}/{len(locations)}] Complete: {location.get('name', 'Unknown')} ({len(narration) if narration else 0} chars)")
+                return location
+            finally:
+                loop.close()
 
         except Exception as e:
             print(f"⚠️  [{index}/{len(locations)}] ERROR for {location.get('name', 'Unknown')}: {str(e)}")
@@ -388,8 +398,8 @@ async def discover_locations_with_narrations(latitude: float, longitude: float, 
             location['narration'] = None
             return location
 
-    # Process in batches of 5 to avoid overwhelming MCP servers
-    BATCH_SIZE = 5
+    # Process in batches of 3 to avoid overwhelming MCP servers
+    BATCH_SIZE = 4
     locations_with_narrations = []
 
     for i in range(0, len(locations), BATCH_SIZE):
@@ -400,16 +410,27 @@ async def discover_locations_with_narrations(latitude: float, longitude: float, 
         print(f"\n🔄 Processing Batch {batch_num}/{total_batches} ({len(batch)} locations)")
         print("-" * 80)
 
-        # Create tasks for this batch
-        tasks = [
-            generate_with_error_handling(location, i + idx + 1)
-            for idx, location in enumerate(batch)
-        ]
+        # Use ThreadPoolExecutor for parallel execution
+        batch_results = []
+        with ThreadPoolExecutor(max_workers=BATCH_SIZE) as executor:
+            # Submit all tasks to the executor
+            future_to_location = {
+                executor.submit(generate_with_error_handling_sync, location, i + idx + 1): location
+                for idx, location in enumerate(batch)
+            }
+            
+            # Collect results as they complete
+            for future in as_completed(future_to_location):
+                try:
+                    result = future.result()
+                    batch_results.append(result)
+                except Exception as e:
+                    location = future_to_location[future]
+                    print(f"⚠️  Exception for {location.get('name', 'Unknown')}: {str(e)}")
+                    location['narration'] = None
+                    batch_results.append(location)
 
-        # Execute batch in parallel
-        batch_results = await asyncio.gather(*tasks)
         locations_with_narrations.extend(batch_results)
-
         print(f"✅ Batch {batch_num}/{total_batches} complete\n")
 
     print("\n" + "="*80)
