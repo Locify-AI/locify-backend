@@ -1,6 +1,5 @@
 import asyncio
 from dedalus_labs import AsyncDedalus, DedalusRunner
-from dedalus_labs.utils.streaming import stream_async
 from dotenv import load_dotenv
 import json
 import re
