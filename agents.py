@@ -184,110 +184,31 @@ async def generate_tour_guide_narration(
 
     try:
         result = await runner.run(
-            input=f"""You are a master storyteller and tour guide researcher for Locify.
+            input=f"""You are an expert AI tour guide for Locify.
+                Your ONLY task is to narrate about a single location exactly as if you were speaking to a traveler.
 
-        **LOCATION TO RESEARCH:**
-        - Name: {place_name}
-        - Category: {place_category}
-        - Address: {address}
-        - Coordinates: {lat}, {lon}
-        - Foursquare Description: {foursquare_description}
-        - Historical Significance: {historical_significance}
+                **LOCATION:**
+                - Name: {place_name}
+                - Category: {place_category}
+                - Address: {address}
+                - Coordinates: {lat}, {lon}
+                - Foursquare Description: {foursquare_description}
+                - Historical Significance: {historical_significance}
 
-        **YOUR RESEARCH MISSION:**
-        Conduct comprehensive research to uncover the fascinating story of this location.
-        Use ALL available tools to search for:
+                **CRITICAL OUTPUT REQUIREMENTS:**
+                - You MUST return a single JSON object.
+                - It MUST have only one field: `"narration"`.
+                - The narration must be written exactly as a spoken tour guide would talk:
+                - Begin immediately with information (e.g., “This historic site was built in 1882…” or “Welcome to…”)
+                - Do NOT say things like “I will now research…” or “Here’s what I found.”
+                - Do NOT use filler words or meta-commentary.
+                - Do NOT describe your process.
+                - Keep the narration between 150–200 words, written in natural spoken tone.
+                - NO markdown, code blocks, or extra text outside JSON.
 
-        **1. HISTORICAL DEPTH (Priority: High)**
-        - Construction/founding date and architect/founder
-        - Original purpose and how it has evolved
-        - Key historical events that occurred here
-        - Architectural style and unique design features
-        - Notable people associated with the location
-        - Awards, recognitions, or records it holds
-
-        **2. CULTURAL SIGNIFICANCE (Priority: High)**
-        - Role in local/national culture or history
-        - Appearances in films, books, art, or media
-        - Impact on surrounding community or society
-        - Legends, folklore, or famous anecdotes
-        - Current cultural programs or significance
-
-        **3. HIDDEN GEMS & INSIDER DETAILS (Priority: Medium)**
-        - Architectural secrets or details most people miss
-        - Surprising facts or statistics
-        - Best times to visit or unique experiences
-        - Recent renovations or changes
-        - What locals love most about this place
-
-        **4. VISUAL & SENSORY DETAILS (Priority: Medium)**
-        - Striking visual features visitors should notice
-        - Seasonal variations or atmospheric qualities
-        - Unique sounds, materials, or artistic elements
-
-        **RESEARCH STRATEGY:**
-        - Search web for: "{place_name} history"
-        - Search web for: "{place_name} architecture facts"
-        - Search web for: "{place_name} cultural significance"
-        - Search web for: "{place_name} visitor guide hidden details"
-        - Look for academic sources, historical archives, and heritage site records
-        - Find recent news articles or cultural reviews (past 2 years)
-
-        **AFTER COMPLETING YOUR RESEARCH:**
-
-        Write a captivating 60-second spoken narration (150-200 words) using this structure:
-
-        ---
-
-        **[HOOK - 10 seconds / 30-40 words]**
-        Open with a surprising fact, vivid image, or compelling question.
-        Create immediate presence with "You're standing at..." or "Welcome to..."
-        Make listeners want to know more.
-
-        **[HISTORICAL CONTEXT - 20 seconds / 50-60 words]**
-        Share the origin story with specific dates, names, and architectural details.
-        Explain why this location is historically or culturally significant.
-        Connect it to broader historical movements or events.
-
-        **[FASCINATING DETAILS - 20 seconds / 50-60 words]**
-        Reveal 2-3 unexpected facts or hidden gems from your research.
-        Include authentic anecdotes, famous visitors, or architectural secrets.
-        Make listeners see the location with fresh eyes.
-
-        **[CONTEMPORARY RELEVANCE - 10 seconds / 30-40 words]**
-        Connect past to present—how is it used today?
-        End with an invitation to explore or observe something specific.
-        Leave listeners feeling enriched and curious.
-
-        ---
-
-        **NARRATION TONE REQUIREMENTS:**
-        - Conversational and warm (like a knowledgeable friend)
-        - Enthusiastic but not overwhelming
-        - Use accessible language—no academic jargon
-        - Create personal connection with "you" and "imagine"
-        - Write for spoken delivery with natural pauses
-        - Vary sentence length for rhythm and emphasis
-
-        **STRICT RULES:**
-        ❌ NO generic descriptions that could apply anywhere
-        ❌ NO lists of amenities (WiFi, parking) unless historically relevant
-        ❌ NO academic citations or footnote references
-        ❌ NO apologetic language ("Unfortunately, I don't have...")
-        ❌ NO overly long sentences that are hard to follow when spoken
-
-        ✅ DO use specific dates, names, and historical facts
-        ✅ DO paint vivid sensory pictures
-        ✅ DO connect past to present meaningfully
-        ✅ DO end with actionable invitation to explore
-
-        **OUTPUT FORMAT:**
-        Provide your final 60-second narration script ONLY.
-        Do NOT include research notes or sources in the final output.
-        The script should be ready to send directly to ElevenLabs for audio generation.
-        Do not include any other text or formatting (only the narration script), or introduction or conclusion like "Here is the narration for..." or "Now I have comprehensive information about...".
-
-        Write the narration now, focusing on information discovered in your research.""",
+                **Example valid output:**
+                ```json
+                {{ "narration": "This historic cathedral, completed in 1890, stands as..." }}""",
 
             model=["anthropic/claude-sonnet-4-20250514"],  # Claude for creative storytelling
             # model=["openai/gpt-4.1"],  # GPT-4.1 for structured data extraction
@@ -306,13 +227,39 @@ async def generate_tour_guide_narration(
 
         full_narration = result.final_output
 
+                # ✅ MODIFIED SECTION START — strict JSON parse / cleanup
         if not full_narration:
             print(f"⚠️  WARNING: No narration generated for {place_name}")
             return ""
 
-        print("-"*80 + "\n")
+        # Try to extract the narration JSON safely
+        try:
+            match = re.search(r"\{[\s\S]*\}", full_narration)
+            if match:
+                parsed = json.loads(match.group(0))
+                narration_text = parsed.get("narration", "").strip()
+            else:
+                # fallback if model ignored JSON
+                narration_text = full_narration.strip()
+        except Exception as e:
+            print(f"⚠️  JSON parse failed for narration ({place_name}): {str(e)}")
+            narration_text = re.sub(
+                r"(?i)(i('| a)?ll|here('| i)?s|now|let('| )?s|as an ai).*", "", 
+                full_narration
+            ).strip()
 
-        return full_narration
+        # Remove any leading meta sentences like “I’ll conduct…” etc.
+        narration_text = re.sub(
+            r"(?i)^(i('| )?(will|shall|am)|here('| )?is|let('| )?me|as an ai|sure,|okay,).*?:?\s*", 
+            "", 
+            narration_text
+        ).strip()
+
+        print(f"🧭 Final narration (cleaned): {narration_text[:120]}...")
+        return narration_text
+        # ✅ MODIFIED SECTION END — strict JSON parse / cleanup
+
+
 
     except Exception as e:
         print(f"❌ ERROR generating narration for {place_name}: {str(e)}")
