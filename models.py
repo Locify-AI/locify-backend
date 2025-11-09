@@ -64,3 +64,7 @@ class Narration(Base):
     # Relationship
     location = relationship("Location", back_populates="narration")
 
+    audio_url = Column(String, nullable=True)
+
+
+
