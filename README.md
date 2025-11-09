@@ -1,4 +1,4 @@
-# maptourai — Backend API
+# locify(maptourai) — Backend API
 
 A FastAPI backend service for <strong>maptourai</strong> (project codebase still uses the name <em>locify</em> in many files). For the purposes of documentation and judging, “locify” and “maptourai” refer to the same project. The app uses MCP (Model Context Protocol) agents to discover historical locations and generate immersive tour guide narrations.
 
@@ -281,6 +281,12 @@ print(response.json())
   - `DEDALUS_API_KEY`
   - `OPENAI_API_KEY` (for GPT-4.1)
   - `ANTHROPIC_API_KEY` (for Claude)
+  - DEDALUS_API_KEY="YourAPIkey"
+  - DID_API_KEY="YourAPIkey"
+  - AWS_ACCESS_KEY_ID="AKIAUKDPJO7YS4MBGYGX"
+  - AWS_SECRET_ACCESS_KEY="YourAPIkey"
+  - AWS_REGION="YourAPIkey"
+  - S3_BUCKET_NAME="YourAPIkey"
 - First request may take several minutes as it needs to discover locations and generate narrations
 - Subsequent requests for the same city will be much faster (cached)
 
