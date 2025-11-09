@@ -223,7 +223,8 @@ async def get_location_by_id(location_id: int, db: Session = Depends(get_db)):
         "narration": narration.script if narration else None,
         "narration_word_count": narration.word_count if narration else None,
         "created_at": location.created_at.isoformat() if location.created_at else None,
-        "updated_at": location.updated_at.isoformat() if location.updated_at else None
+        "updated_at": location.updated_at.isoformat() if location.updated_at else None,
+        "audio_url": narration.audio_url if narration and narration.audio_url else None
     }
 
 
@@ -253,7 +254,8 @@ async def get_all_locations(
             "longitude": loc.longitude,
             "narration": narration.script if narration else None,
             "has_narration": narration is not None,
-            "created_at": loc.created_at.isoformat() if loc.created_at else None
+            "created_at": loc.created_at.isoformat() if loc.created_at else None,
+            "audio_url": narration.audio_url if narration and narration.audio_url else None
         })
 
     return {

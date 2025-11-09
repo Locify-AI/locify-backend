@@ -33,7 +33,7 @@ async def discover_historical_locations(latitude: float, longitude: float, radiu
         within {radius} meters of coordinates: {ll_string}
 
         **STEP 1: DISCOVER DIVERSE LOCATIONS**
-        CRITICAL: You MUST find 10 locations and return a diverse mix of location types.
+        CRITICAL: You MUST find 9 locations and return a diverse mix of location types.
         Do NOT return only fountains, only museums, or only one type.
 
         Use Foursquare Places API to discover locations:
@@ -46,7 +46,7 @@ async def discover_historical_locations(latitude: float, longitude: float, radiu
 
         2. Combine results from searches - aim for 20-30+ results before filtering
 
-        3. Filter to ensure diversity BUT KEEP 10 LOCATIONS - select a mix of:
+        3. Filter to ensure diversity BUT KEEP 9 LOCATIONS - select a mix of:
            - Museums (art, history, science)
            - Historic buildings (churches, cathedrals, libraries)
            - Monuments and memorials
@@ -59,9 +59,9 @@ async def discover_historical_locations(latitude: float, longitude: float, radiu
            - Avoid having MORE THAN 3 of the same type (e.g., max 3 fountains, max 3 churches)
            - Prioritize unique, one-of-a-kind locations but still include interesting common types
            - Include places with history, cultural importance, or architectural interest
-           - Aim for variety but DO NOT over-filter - better to have 10 locations than 2
+           - Aim for variety but DO NOT over-filter - better to have 9 locations than 2
 
-        5. MINIMUM REQUIREMENT: Return 10 locations
+        5. MINIMUM REQUIREMENT: Return 9 locations
 
         6. Sort by a balance of distance and significance
 
@@ -78,7 +78,7 @@ async def discover_historical_locations(latitude: float, longitude: float, radiu
             "category": "Primary category",
             "distance": "Distance from user in meters (if available)",
             "address": "Full address (if available)",
-            "rating": "Rating out of 10 (if available)",
+            "rating": "Rating out of 9 (if available)",
             "description": "Brief description from Foursquare (if available)",
             "popularity": "Number of tips/reviews (if available)",
             "historical_significance": "Why this place is historically/culturally important (brief)"
@@ -88,7 +88,7 @@ async def discover_historical_locations(latitude: float, longitude: float, radiu
 
         **CRITICAL REQUIREMENTS:**
         - Return ONLY the JSON array with no additional commentary
-        - You MUST return 10 locations
+        - You MUST return 9 locations
         - You MUST return a DIVERSE mix of location types
         - DO NOT return only fountains, only museums, or only one category
         - Prioritize places with historical, cultural, or architectural significance
@@ -98,9 +98,9 @@ async def discover_historical_locations(latitude: float, longitude: float, radiu
         **EXECUTION ORDER:**
         1. Perform 3-5 search queries (historic site, museum, church, theater)
         2. You should have 20-30+ location results after all searches
-        3. Filter and select 10 locations with the most diverse mix
+        3. Filter and select 9 locations with the most diverse mix
         4. Return the complete JSON array
-        5. VERIFY before returning: Do you have at least 10 locations in your JSON array?
+        5. VERIFY before returning: Do you have at least 9 locations in your JSON array?
 
         Begin by discovering diverse locations, then return the JSON.""",
 
@@ -162,8 +162,8 @@ async def generate_tour_guide_narration(
     historical_significance: str = ""
 ):
     """
-    Agent 2: You are an expert tour guide tasked with writing an immersive 60-second audio narration by researching
-    the location using web search and synthesizing historical/cultural information. Write the script as if you are diretly speaking to a tourist.
+    Agent 2: Generates immersive 60-second audio tour guide narration by researching
+    the location using web search and synthesizing historical/cultural information.
 
     Args:
         place_name: Name of the landmark/POI
@@ -271,14 +271,12 @@ async def generate_tour_guide_narration(
         - Vary sentence length for rhythm and emphasis
 
         **STRICT RULES:**
-        ❌ NO LLM stlye commentary or response framing
         ❌ NO generic descriptions that could apply anywhere
         ❌ NO lists of amenities (WiFi, parking) unless historically relevant
         ❌ NO academic citations or footnote references
         ❌ NO apologetic language ("Unfortunately, I don't have...")
         ❌ NO overly long sentences that are hard to follow when spoken
 
-        ✅ DO write as if you are directly speaking to a curious tourist
         ✅ DO use specific dates, names, and historical facts
         ✅ DO paint vivid sensory pictures
         ✅ DO connect past to present meaningfully
@@ -288,7 +286,7 @@ async def generate_tour_guide_narration(
         Provide your final 60-second narration script ONLY.
         Do NOT include research notes or sources in the final output.
         The script should be ready to send directly to ElevenLabs for audio generation.
-        Do not include any response framing, introductions, or conclusions to the narration.
+        Do not include any other text or formatting (only the narration script), or introduction or conclusion like "Here is the narration for..." or "Now I have comprehensive information about...".
 
         Write the narration now, focusing on information discovered in your research.""",
 
