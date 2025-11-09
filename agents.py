@@ -3,7 +3,6 @@ from dedalus_labs import AsyncDedalus, DedalusRunner
 from dotenv import load_dotenv
 import json
 import re
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 load_dotenv()
 
@@ -33,7 +32,7 @@ async def discover_historical_locations(latitude: float, longitude: float, radiu
         within {radius} meters of coordinates: {ll_string}
 
         **STEP 1: DISCOVER DIVERSE LOCATIONS**
-        CRITICAL: You MUST find 9 locations and return a diverse mix of location types.
+        CRITICAL: You MUST find 8 locations and return a diverse mix of location types.
         Do NOT return only fountains, only museums, or only one type.
 
         Use Foursquare Places API to discover locations:
@@ -46,7 +45,7 @@ async def discover_historical_locations(latitude: float, longitude: float, radiu
 
         2. Combine results from searches - aim for 20-30+ results before filtering
 
-        3. Filter to ensure diversity BUT KEEP 9 LOCATIONS - select a mix of:
+        3. Filter to ensure diversity BUT KEEP 8 LOCATIONS - select a mix of:
            - Museums (art, history, science)
            - Historic buildings (churches, cathedrals, libraries)
            - Monuments and memorials
@@ -59,9 +58,9 @@ async def discover_historical_locations(latitude: float, longitude: float, radiu
            - Avoid having MORE THAN 3 of the same type (e.g., max 3 fountains, max 3 churches)
            - Prioritize unique, one-of-a-kind locations but still include interesting common types
            - Include places with history, cultural importance, or architectural interest
-           - Aim for variety but DO NOT over-filter - better to have 9 locations than 2
+           - Aim for variety but DO NOT over-filter - better to have 8 locations than 2
 
-        5. MINIMUM REQUIREMENT: Return 9 locations
+        5. MINIMUM REQUIREMENT: Return 8 locations
 
         6. Sort by a balance of distance and significance
 
@@ -78,7 +77,7 @@ async def discover_historical_locations(latitude: float, longitude: float, radiu
             "category": "Primary category",
             "distance": "Distance from user in meters (if available)",
             "address": "Full address (if available)",
-            "rating": "Rating out of 9 (if available)",
+            "rating": "Rating out of 10 (if available)",
             "description": "Brief description from Foursquare (if available)",
             "popularity": "Number of tips/reviews (if available)",
             "historical_significance": "Why this place is historically/culturally important (brief)"
@@ -88,7 +87,7 @@ async def discover_historical_locations(latitude: float, longitude: float, radiu
 
         **CRITICAL REQUIREMENTS:**
         - Return ONLY the JSON array with no additional commentary
-        - You MUST return 9 locations
+        - You MUST return 8 locations
         - You MUST return a DIVERSE mix of location types
         - DO NOT return only fountains, only museums, or only one category
         - Prioritize places with historical, cultural, or architectural significance
@@ -98,9 +97,9 @@ async def discover_historical_locations(latitude: float, longitude: float, radiu
         **EXECUTION ORDER:**
         1. Perform 3-5 search queries (historic site, museum, church, theater)
         2. You should have 20-30+ location results after all searches
-        3. Filter and select 9 locations with the most diverse mix
+        3. Filter and select 8 locations with the most diverse mix
         4. Return the complete JSON array
-        5. VERIFY before returning: Do you have at least 9 locations in your JSON array?
+        5. VERIFY before returning: Do you have at least 8 locations in your JSON array?
 
         Begin by discovering diverse locations, then return the JSON.""",
 
@@ -291,10 +290,12 @@ async def generate_tour_guide_narration(
         Write the narration now, focusing on information discovered in your research.""",
 
             model=["anthropic/claude-sonnet-4-20250514"],  # Claude for creative storytelling
+            # model=["openai/gpt-4.1"],  # GPT-4.1 for structured data extraction
 
             mcp_servers=[
                 "tsion/brave-search-mcp",  # Web search for historical info
-                # "joerup/exa-mcp"           # Semantic search for academic sources
+                # "akakak/sonar"
+                # "joerup/exa-mcp"          
             ],
         )
 
@@ -359,48 +360,44 @@ async def discover_locations_with_narrations(latitude: float, longitude: float, 
 
     print(f"\n✅ Agent 1 complete: Found {len(locations)} locations")
 
-    # AGENT 2: Generate narrations for each location using parallel workers
-    print(f"\n📝 AGENT 2: Generating narrations for {len(locations)} locations using parallel workers...")
+    # AGENT 2: Generate narrations for each location using async/await with batching
+    print(f"\n📝 AGENT 2: Generating narrations for {len(locations)} locations using async batches...")
     print("="*80 + "\n")
 
-    def generate_with_error_handling_sync(location, index):
-        """Synchronous wrapper for parallel execution using ThreadPoolExecutor"""
+    async def generate_with_error_handling(location, index):
+        """Async function to generate narration with error handling"""
         print(f"[{index}/{len(locations)}] Starting: {location.get('name', 'Unknown')}")
 
         try:
-            # Create a new event loop for this thread
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            
-            try:
-                # Run the async function with timeout to prevent hanging
-                narration = loop.run_until_complete(
-                    generate_tour_guide_narration(
-                        place_name=location.get('name', 'Unknown'),
-                        place_category=location.get('category', 'Unknown'),
-                        coordinates=location.get('coordinates', {}),
-                        address=location.get('address', ''),
-                        foursquare_description=location.get('description', ''),
-                        historical_significance=location.get('historical_significance', '')
-                    )
-                )
+            narration = await generate_tour_guide_narration(
+                place_name=location.get('name', 'Unknown'),
+                place_category=location.get('category', 'Unknown'),
+                coordinates=location.get('coordinates', {}),
+                address=location.get('address', ''),
+                foursquare_description=location.get('description', ''),
+                historical_significance=location.get('historical_significance', '')
+            )
 
-                # Add narration to location object
-                location['narration'] = narration
-                print(f"✅ [{index}/{len(locations)}] Complete: {location.get('name', 'Unknown')} ({len(narration) if narration else 0} chars)")
-                return location
-            finally:
-                loop.close()
+            # Add narration to location object
+            location['narration'] = narration
+            print(f"✅ [{index}/{len(locations)}] Complete: {location.get('name', 'Unknown')} ({len(narration) if narration else 0} chars)")
+            return location
 
         except Exception as e:
             print(f"⚠️  [{index}/{len(locations)}] ERROR for {location.get('name', 'Unknown')}: {str(e)}")
+            import traceback
+            traceback.print_exc()
             # Still add location but with empty narration
             location['narration'] = None
             return location
 
-    # Process in batches of 3 to avoid overwhelming MCP servers
-    BATCH_SIZE = 3
+    # Process in batches to avoid overwhelming MCP servers
+    BATCH_SIZE = 1
     locations_with_narrations = []
+    
+    # Delay between batches (in seconds) to avoid rate limiting
+    DELAY_BETWEEN_BATCHES = 2.0  # 2 seconds between batches
+    DELAY_BETWEEN_LOCATIONS = 1.0  # 1 second between individual locations (if BATCH_SIZE = 1)
 
     for i in range(0, len(locations), BATCH_SIZE):
         batch = locations[i:i + BATCH_SIZE]
@@ -410,27 +407,43 @@ async def discover_locations_with_narrations(latitude: float, longitude: float, 
         print(f"\n🔄 Processing Batch {batch_num}/{total_batches} ({len(batch)} locations)")
         print("-" * 80)
 
-        # Use ThreadPoolExecutor for parallel execution
-        batch_results = []
-        with ThreadPoolExecutor(max_workers=BATCH_SIZE) as executor:
-            # Submit all tasks to the executor
-            future_to_location = {
-                executor.submit(generate_with_error_handling_sync, location, i + idx + 1): location
-                for idx, location in enumerate(batch)
-            }
+        # If processing one at a time, add delay between locations
+        if BATCH_SIZE == 1:
+            # Process single location
+            result = await generate_with_error_handling(batch[0], i + 1)
+            locations_with_narrations.append(result)
             
-            # Collect results as they complete
-            for future in as_completed(future_to_location):
-                try:
-                    result = future.result()
-                    batch_results.append(result)
-                except Exception as e:
-                    location = future_to_location[future]
-                    print(f"⚠️  Exception for {location.get('name', 'Unknown')}: {str(e)}")
-                    location['narration'] = None
-                    batch_results.append(location)
+            # Add delay after each location (except the last one)
+            if i + BATCH_SIZE < len(locations):
+                print(f"⏳ Waiting {DELAY_BETWEEN_LOCATIONS}s before next location...")
+                await asyncio.sleep(DELAY_BETWEEN_LOCATIONS)
+        else:
+            # Process batch concurrently
+            # Create tasks for this batch
+            tasks = [
+                generate_with_error_handling(location, i + idx + 1)
+                for idx, location in enumerate(batch)
+            ]
 
-        locations_with_narrations.extend(batch_results)
+            # Execute batch concurrently using asyncio.gather
+            batch_results = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            # Process results and handle exceptions
+            for idx, result in enumerate(batch_results):
+                if isinstance(result, Exception):
+                    # Get the original location from the batch
+                    failed_location = batch[idx].copy()
+                    failed_location['narration'] = None
+                    print(f"⚠️  Exception in batch for {failed_location.get('name', 'Unknown')}: {str(result)}")
+                    locations_with_narrations.append(failed_location)
+                else:
+                    locations_with_narrations.append(result)
+            
+            # Add delay between batches (except after the last batch)
+            if i + BATCH_SIZE < len(locations):
+                print(f"⏳ Waiting {DELAY_BETWEEN_BATCHES}s before next batch...")
+                await asyncio.sleep(DELAY_BETWEEN_BATCHES)
+
         print(f"✅ Batch {batch_num}/{total_batches} complete\n")
 
     print("\n" + "="*80)

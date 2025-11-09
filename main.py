@@ -23,6 +23,8 @@ from dotenv import load_dotenv
 import boto3
 from botocore.exceptions import NoCredentialsError
 
+load_dotenv(override=True)
+
 s3 = boto3.client(
     "s3",
     aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
@@ -565,16 +567,14 @@ guides = [
     "JBFqnCBsd6RMkjVDRZzb",  # george british
     "IKne3meq5aSn9XLyUdCD",  # charlie australian
     "cgSgspJ2msm6clMCkdW9",  # jessica american
-    "pFZP5JQG7iQjIQuC4Bku",  # lily british
     "nPczCjzI2devNBz1zQrb",  # brian american
 ]
 
 images = [
-    "blackguy.jpeg",
-    "brownguy.jpg",
-    "asiangirl.jpg",
-    "whitegirl.jpg",
-    "whiteguy.jpeg",
+    "shahzaib.jpg",
+    "hailemariam.jpg",
+    "jania.jpg",
+    "nursultan.jpg",
 ]
 
 
