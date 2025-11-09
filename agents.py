@@ -399,7 +399,7 @@ async def discover_locations_with_narrations(latitude: float, longitude: float, 
             return location
 
     # Process in batches of 3 to avoid overwhelming MCP servers
-    BATCH_SIZE = 4
+    BATCH_SIZE = 3
     locations_with_narrations = []
 
     for i in range(0, len(locations), BATCH_SIZE):
