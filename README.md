@@ -4,6 +4,8 @@ A FastAPI backend service for <strong>maptourai</strong> (project codebase still
 
 This README is updated for HackPrinceton and lists all major APIs, libraries, and tracks relevant to our submission.
 
+Developers' Discord Handle: @wwsoup, @nursultansagyntay, @shahzaib4248, and @hailemariam_16209
+
 ## Features
 
 - **Location Discovery**: Automatically discovers historical landmarks, museums, and cultural sites when users enter new cities/towns
