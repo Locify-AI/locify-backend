@@ -1,6 +1,8 @@
-# Locify Backend API
+# maptourai — Backend API
 
-A FastAPI backend service for Locify, a tour guide app that uses MCP (Model Context Protocol) agents to discover historical locations and generate immersive tour guide narrations.
+A FastAPI backend service for <strong>maptourai</strong> (project codebase still uses the name <em>locify</em> in many files). For the purposes of documentation and judging, “locify” and “maptourai” refer to the same project. The app uses MCP (Model Context Protocol) agents to discover historical locations and generate immersive tour guide narrations.
+
+This README is updated for HackPrinceton and lists all major APIs, libraries, and tracks relevant to our submission.
 
 ## Features
 
@@ -9,6 +11,50 @@ A FastAPI backend service for Locify, a tour guide app that uses MCP (Model Cont
 - **Narration Generation**: Generates 90-second immersive tour guide narrations for discovered locations
 - **SQLite Database**: Stores all discovered locations and narrations locally
 - **RESTful API**: Clean REST API for frontend integration
+
+## Tech Stack and APIs (for HackPrinceton)
+
+- Backend: FastAPI (Uvicorn), SQLAlchemy, SQLite
+- Agents/MCP: Dedalus Labs (AsyncDedalus, DedalusRunner)
+  - MCP servers used: Foursquare Places MCP (discovery), Brave Search MCP (research)
+- LLMs: OpenAI GPT-4.1 (structured extraction), Anthropic Claude Sonnet (storytelling/narration)
+- Frontend: Next.js 16 (Turbopack), Mapbox GL JS, TypeScript/React
+
+Special track alignment we qualify for:
+- Required track: Education & Entertainment (storytelling and on-site tour guidance)
+- Special track: Best Use of Dedalus (we use Dedalus Labs MCPs end-to-end for discovery and research)
+- Automatically considered: Best Overall Hack
+
+Note: Additional integration paths could qualify for other tracks, but these are our primary fits.
+
+## Public Deployment
+
+Backend (FastAPI) is deployed at:
+
+```
+https://locify-backend.onrender.com/
+```
+
+Use this base URL for production calls, e.g.:
+
+```
+POST https://locify-backend.onrender.com/api/discover-locations
+GET  https://locify-backend.onrender.com/api/locations/{id}
+```
+
+## External Tools & Providers Used
+
+| Provider / Company | Purpose |
+|--------------------|---------|
+| Dedalus Labs | MCP agent framework (AsyncDedalus, DedalusRunner) for orchestrating multi-step discovery & research |
+| Foursquare (via MCP) | Historical & cultural place data (IDs, categories, coordinates) |
+| Brave | Web search MCP for factual + historical research feeding narration generation |
+| OpenAI | GPT-4.1 model for structured extraction and location JSON normalization |
+| Anthropic | Claude Sonnet model for high-quality narrative script generation |
+| Mapbox | Interactive map rendering and visualization in the Next.js frontend |
+| Uvicorn / FastAPI | High-performance Python ASGI backend & API layer |
+| SQLite | Lightweight embedded database for caching discovered locations & narrations |
+
 
 ## Setup
 
@@ -28,6 +74,9 @@ cp .env.example .env
 
 Required API keys:
 - `DEDALUS_API_KEY`: Your Dedalus Labs API key
+Optional (recommended for higher quality/coverage):
+- `OPENAI_API_KEY` (for GPT-4.1)
+- `ANTHROPIC_API_KEY` (for Claude Sonnet)
 
 ### 3. Run the Server
 
@@ -92,6 +141,12 @@ Single endpoint that discovers historical locations (up to 20) and automatically
 - Caches results - if a city has been discovered before, returns existing locations with narrations
 - Stores all data in SQLite database for future retrieval
 
+### Retrieve a Specific Location
+
+**GET** `/api/locations/{id}`
+
+Returns a single location by database ID, including `narration` if it exists. Used by the frontend to fetch narration on demand.
+
 ## Database Schema
 
 The application uses SQLite with three main tables:
@@ -112,6 +167,19 @@ The application uses SQLite with three main tables:
 
 5. **Response**: Returns only essential fields (name, latitude, longitude, category, narration) in a clean, simple format.
 
+## Frontend Integration and “Single-Discovery” Strategy
+
+To minimize MCP/API calls during a session, the frontend fetches POIs once and caches them:
+
+- When the app opens and the user’s location is first fixed, the frontend calls its Next.js route `GET /api/places?lat=…&lon=…&radius=…`.
+- That route proxies to this backend’s `POST /api/discover-locations`, receives the full list with narrations, and normalizes the payload back to the frontend.
+- The POIs are stored in a global React context so the app doesn’t repeat discovery requests as the user moves.
+- As the user approaches a POI (e.g., within 50m), the UI displays the narration text (already present from discovery or fetched via `GET /api/narration` which proxies to `GET /api/locations/{id}`).
+
+Benefits:
+- Only one MCP discovery call per session (or per city), dramatically reducing calls and latency.
+- Immediate proximity reactions without refetching discovery data.
+
 ## Development
 
 ### Project Structure
@@ -124,13 +192,18 @@ locify-backend/
 ├── agents.py            # MCP agent functions
 ├── services.py          # Business logic and database operations
 ├── requirements.txt     # Python dependencies
-├── .env.example        # Environment variables template
-└── README.md           # This file
+├── .env.example         # Environment variables template
+└── README.md            # This file
 ```
 
 ### Database Initialization
 
 The database is automatically initialized on server startup. The SQLite database file (`locify.db`) will be created in the project root.
+
+### Concurrency and Connection Pooling Notes
+
+- SQLite is configured with `NullPool` to avoid QueuePool exhaustion during long-running discovery/narration tasks.
+- The discovery endpoint uses a simple in-process lock to prevent overlapping runs. If a discovery is in progress, new requests receive `429` until it completes.
 
 ## Testing
 
@@ -210,6 +283,10 @@ print(response.json())
   - `ANTHROPIC_API_KEY` (for Claude)
 - First request may take several minutes as it needs to discover locations and generate narrations
 - Subsequent requests for the same city will be much faster (cached)
+
+## Naming Note (locify → maptourai)
+
+We renamed the app from <strong>locify</strong> to <strong>maptourai</strong> to better represent our mission. Many file paths and identifiers still use “locify” for now, but in all documentation and the demo we refer to the product as “maptourai”. For judges and reviewers, please consider “locify” and “maptourai” interchangeable.
 
 ## License
 
