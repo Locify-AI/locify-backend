@@ -162,8 +162,8 @@ async def generate_tour_guide_narration(
     historical_significance: str = ""
 ):
     """
-    Agent 2: Generates immersive 60-second audio tour guide narration by researching
-    the location using web search and synthesizing historical/cultural information.
+    Agent 2: You are an expert tour guide tasked with writing an immersive 60-second audio narration by researching
+    the location using web search and synthesizing historical/cultural information. Write the script as if you are diretly speaking to a tourist.
 
     Args:
         place_name: Name of the landmark/POI
@@ -271,12 +271,14 @@ async def generate_tour_guide_narration(
         - Vary sentence length for rhythm and emphasis
 
         **STRICT RULES:**
+        ❌ NO LLM stlye commentary or response framing
         ❌ NO generic descriptions that could apply anywhere
         ❌ NO lists of amenities (WiFi, parking) unless historically relevant
         ❌ NO academic citations or footnote references
         ❌ NO apologetic language ("Unfortunately, I don't have...")
         ❌ NO overly long sentences that are hard to follow when spoken
 
+        ✅ DO write as if you are directly speaking to a curious tourist
         ✅ DO use specific dates, names, and historical facts
         ✅ DO paint vivid sensory pictures
         ✅ DO connect past to present meaningfully
@@ -286,7 +288,7 @@ async def generate_tour_guide_narration(
         Provide your final 60-second narration script ONLY.
         Do NOT include research notes or sources in the final output.
         The script should be ready to send directly to ElevenLabs for audio generation.
-        Do not include any other text or formatting (only the narration script), or introduction or conclusion like "Here is the narration for..." or "Now I have comprehensive information about...".
+        Do not include any response framing, introductions, or conclusions to the narration.
 
         Write the narration now, focusing on information discovered in your research.""",
 
@@ -399,7 +401,7 @@ async def discover_locations_with_narrations(latitude: float, longitude: float, 
             return location
 
     # Process in batches of 3 to avoid overwhelming MCP servers
-    BATCH_SIZE = 4
+    BATCH_SIZE = 3
     locations_with_narrations = []
 
     for i in range(0, len(locations), BATCH_SIZE):

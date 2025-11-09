@@ -108,6 +108,7 @@ class LocationWithNarration(BaseModel):
     fsq_id: Optional[str] = None
     address: Optional[str] = None
     description: Optional[str] = None
+    audio_url: Optional[str] = None
 
 
 class LocationResponse(BaseModel):
@@ -576,15 +577,26 @@ images = [
 
 
 class AvatarRequest(BaseModel):
-    text: str = "Hi, and welcome to your new favorite city!"
+    location_id: int
 
 
 @app.post("/api/generate-talking-avatar")
-async def generate_talking_avatar(request: AvatarRequest):
+async def generate_talking_avatar(request: AvatarRequest, db: Session = Depends(get_db)):
     """
     Create a talking avatar video using D-ID with a random voice and avatar.
     """
     try:
+        if request.location_id:
+            location_service = LocationService(db)
+            narration = location_service.get_narration(request.location_id)
+            if not narration:
+                raise HTTPException(status_code=404, detail="Narration not found for this location")
+            text_to_read = narration.script
+        elif request.text:
+            text_to_read = request.text
+        else:
+            raise HTTPException(status_code=400, detail="Must provide either location_id or text")
+
         headers = {
             "Authorization": f"Basic {base64.b64encode((DID_API_KEY + ':').encode()).decode()}",
         }
@@ -614,7 +626,7 @@ async def generate_talking_avatar(request: AvatarRequest):
             "script": {
                 "type": "text",
                 "provider": {"type": "elevenlabs", "voice_id": voice_id},
-                "input": request.text
+                "input": text_to_read
             },
             "config": {"stitch": True, "align_driver": True}
         }
@@ -656,6 +668,10 @@ async def generate_talking_avatar(request: AvatarRequest):
         s3_filename = f"avatars/avatar_{timestamp}.mp4"
         s3_url = upload_video_to_s3(video_bytes, s3_filename)
         print(f"✅ Uploaded to S3: {s3_url}")
+
+        if request.location_id:
+            narration.audio_url = s3_url
+            db.commit()
 
         return {
             "message": "Avatar video created and uploaded successfully",

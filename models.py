@@ -64,13 +64,7 @@ class Narration(Base):
     # Relationship
     location = relationship("Location", back_populates="narration")
 
-class S3File(Base):
-    """Stores metadata for files uploaded to S3"""
-    __tablename__ = "s3_files"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    url = Column(Text, nullable=False)
-    uploaded_at = Column(DateTime(timezone=True), server_default=func.now())
+    audio_url = Column(String, nullable=True)
 
-    narration = relationship("Narration", back_populates="s3_file", uselist=False)
+
 
